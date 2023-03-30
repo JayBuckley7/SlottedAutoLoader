@@ -1,5 +1,5 @@
 # SlottedAutoLoader
-This script automates a process for League of Legends players who use a third-party program called "Slotted" to manage their in-game items.
+This script automates launching slotted plugin when league-of-legends.exe starts
 
 # Installation
 Install Python 3.x.
