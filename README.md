@@ -5,7 +5,8 @@ This script automates launching slotted plugin when league-of-legends.exe starts
 Install Python 3.x.
 Install the required Python modules:
 # Copy code - install prereqs
-```pip install pygetwindow pyautogui psutil pywinauto keyboard Pillow```
+```pip install psutil pywin32 pywinauto cachetools
+```
 Download the script and save it to your desired directory.
 # Usage
 - On start it will try to find your slotted exe, if it can't find it it will ask you where it is and then save the location for next time
