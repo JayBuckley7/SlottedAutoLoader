@@ -1,37 +1,25 @@
 import re
 import pygetwindow as gw
-import pyautogui
 import psutil
-import win32process
 import win32gui
 import subprocess
 import time
-from pywinauto import Desktop
 from pywinauto.timings import wait_until
 from pywinauto.application import Application
 import glob
 import os
-from pywinauto import keyboard
 import tkinter as tk
 from tkinter import filedialog
-import tkinter.messagebox as mbox
-from PIL import ImageGrab
+from pywinauto_recorder.player import *
+import win32con
+import ctypes
 
-# hex_pattern = r"^[0-9a-fA-F]{32}$"
-# # matched_title = find_window_title_by_regex(hex_pattern)
+
+
 process_path = ""
 process_name = os.path.basename(process_path) 
 game_process_name = "League of Legends.exe"
-loadBtn = ""
 
-
-def wait_until_process_not_running(process_name, timeout):
-    start_time = time.monotonic()
-    while time.monotonic() - start_time < timeout:
-        if not any(proc.name() == process_name for proc in psutil.process_iter()):
-            return True
-        time.sleep(0.5)
-    return False
 
 def browse_file():
     root = tk.Tk()
@@ -42,50 +30,30 @@ def browse_file():
             f.write(file_path)
     return file_path
 
+def restore_window(main_window_handle):
+    placement = win32gui.GetWindowPlacement(main_window_handle)
+    if placement[1] == win32con.SW_SHOWMINIMIZED:
+        placement[1] = win32con.SW_SHOWNORMAL
+        win32gui.SetWindowPlacement(main_window_handle, placement)
 
-def find_load_button(i=1):
-    if i>=8:
-        print("something is wrong getting the button image")
-        if os.path.exists("loadBtn.png"):
-            os.remove("loadBtn.png")
-        exit()
-    print(f"Searching for PNG files in {os.getcwd()}")
-    pattern = "*.png"
-    files = glob.glob(pattern)
+def find_and_click_button(main_window_handle):
+    WM_LBUTTONDOWN = 0x0201
+    WM_LBUTTONUP = 0x0202
 
-    # Find the file name that matches the regex
-    regex = re.compile(r"^LoadBtn\.PNG$", re.IGNORECASE)
-    for file in files:
-        if regex.match(os.path.basename(file)):
-            loadBtn = os.path.abspath(file)
-            print(f"Load button PNG found at: {loadBtn}")
-            return loadBtn
+    if main_window_handle:
+        try:
+            restore_window(main_window_handle)
+            win32gui.SetForegroundWindow(main_window_handle)
+            x = 690
+            y = 460
+            lParam = (y << 16) | x
 
-    # If no matching file was found
-    print("Load button PNG not found, please select the region where the button is located...")
-    print("trying to put script in view...")
-    launch_script()
-    print("in view?...")
-    time.sleep(2)
-    mbox.showinfo("waiting for snip...", "Load button PNG not found, please select the region where the button is located...")
-    keyboard.send_keys("{VK_LWIN down}{VK_SHIFT down}s{VK_SHIFT up}{VK_LWIN up}")
-    time.sleep(2)
-    if is_running("ScreenSketch.exe"):
-        print("waiting for snip...")
-        wait_until_process_not_running("ScreenSketch.exe")
-    print("out of wait for snip")
-
-    image = ImageGrab.grabclipboard()
-
-    # Save the image as loadBtn.png in the current directory
-    if image:
-        image.save("loadBtn.png")
-        print("Load button PNG saved to current directory.")
-        return find_load_button()
+            ctypes.windll.user32.SendMessageW(main_window_handle, WM_LBUTTONDOWN, 1, lParam)
+            ctypes.windll.user32.SendMessageW(main_window_handle, WM_LBUTTONUP, 1, lParam)
+        except:
+            print("failed during click")
     else:
-        print("No image found in clipboard.")
-    return find_load_button(i+1)
-
+        print("main windows handle was false")
 
 def find_slotted():
     path_file = os.path.join(os.getcwd(), "path.txt")
@@ -121,6 +89,27 @@ def find_slotted():
     process_name = os.path.basename(process_path) 
     return process_name, process_path
 
+def find_exe_name():
+    path = os.path.join(os.environ['APPDATA'],'QUFUQQ==').replace("Roaming", "Local")
+
+    print("searching for exe in {}", path)
+    exe_files = glob.glob(os.path.join(path, '*.exe'))
+
+    if not exe_files:
+        return None
+    for file in exe_files:
+        try:
+            os.remove(file)
+        except:
+            return os.path.basename(exe_files[1])
+
+def is_slotted_running():
+    name = find_exe_name()
+    if name:
+        print("name: " + str(name))
+        return True, name
+    return False, None
+    
 def is_running(name):
     for proc in psutil.process_iter(['name']):
         if proc.info['name'] == name:
@@ -132,10 +121,6 @@ def is_game_running():
         if proc.info['name'] == game_process_name:
             return True
     return False
-
-def list_window_titles():
-    all_windows = gw.getAllTitles()
-    return all_windows
 
 def find_process_pid(process_name):
     for process in psutil.process_iter(['name', 'pid']):
@@ -153,114 +138,47 @@ def kill_process_by_name(process_name):
     return False
 
 def find_sub_window_and_switch_to(process_pid, window_name):
-    print("Find n switch...")
+    print("... ...Find n switch...")
     app = Application().connect(process=process_pid)
     main_window = app.top_window()
-    wait_until(0.1, 5, lambda: main_window.exists())
+    wait_until(0.1, 10, lambda: main_window.exists())
     for child in main_window.children():
+        print(child.element_info.name)
         try:
             if child.element_info.class_name == "Chrome_WidgetWin_1" and child.element_info.name == window_name:
                 child_window = main_window.child_window(title=window_name)
-                wait_until(0.1, 5, lambda: child_window.exists())
-                print(f"Switching to child window with handle: {child_window.handle}")
-                child_window.set_focus()
-                return True
+                for element in child_window.children():
+                    element.element_info.name
+                print("... ...waiting for it to load")
+                wait_until(0.1, 15, lambda: child_window.exists())
+                print(f"... ...found handle: {child_window.handle}")
+                # child_window.set_focus()
+                
+                return True, child_window.handle
         except Exception as e:
-            print(f"Exception while searching for child window: {e}")
-    return False
-
-def find_window_title_by_pid(pid):
-    print("looking for pid: {}",pid)
-    windows = gw.getWindowsWithTitle('')
-    for window in windows:
-        _, window_pid = win32process.GetWindowThreadProcessId(window._hWnd)
-        if window_pid == pid:
-            print("found pid: {}",pid)
-            # bring the window to the front
-            hwnd = win32gui.FindWindow(None, window.title)
-            win32gui.SetForegroundWindow(hwnd)
-            print("tried to setForeGround")
-            return window.title
-    print("no sorry cant find")
-    return None
-
-def find_window_by_process_name(process_name):
-    for process in psutil.process_iter(['name', 'pid']):
-        # print(process.info['name'])
-        if process.info['name'] == process_name:
-            print("=-=-=--==--=-=-==--==--=-=-=-=")
-            pid = process.info['pid']
-            print("pid: {}",pid)
-            window_title = find_window_title_by_pid(pid)
-            window = gw.getWindowsWithTitle(window_title)
-            if window:
-
-                return window[0]
-    return None
-
-def find_window_title_by_regex(pattern):
-    regex = re.compile(pattern)
-    all_windows = gw.getAllTitles()
-    
-    for title in all_windows:
-        if regex.match(title):
-            return title
-            
-    return None
-
-def find_and_click_button(window_title, button_image, i=1):
-    if i > 12:
-        if kill_process_by_name(process_name):
-            return 
-
-    print("I think we have the window?")
-    print("=-=-=--==--=-=-==--==--=-=-=-=")
-
-    button_location = pyautogui.locateOnScreen(button_image, confidence=0.9)
-    if button_location:
-        button_center = pyautogui.center(button_location)
-        pyautogui.click(button_center)
-    else:
-        print("looking for loadBtn...{}",i)
-        time.sleep(1)
-        find_and_click_button(window_title, button_image,i+1)
-    return True
-
-def wait_close():
-        print("Wait Close...")
-        while is_game_running():
-            print("game is running...")
-            process_pid = find_process_pid(process_name)
-            if not process_pid:
-                launch_script()
-                return True
-            else:
-                while is_game_running():
-                    print("script already running")
-                    time.sleep(30)
-
-
+            print(f"... ...Exception while searching for child window: {e}")
+    return False, 0
 
 def start_script():
     process_pid = find_process_pid(process_name)
     if process_pid:
-        find_sub_window_and_switch_to(process_pid, subwindowTitle)
-        print("click load")
-        find_and_click_button(process_name, loadBtn)
-        return True
+        found, handle =find_sub_window_and_switch_to(process_pid, subwindowTitle)
+        if found:
+            print("click load")
+            find_and_click_button(handle)
+            return True
     return False
 
-
-
 def launch_script():
-    print("Launch Script...")
+    print("... Launch Script...")
     process_pid = find_process_pid(process_name)
     if not process_pid:
-        print("No process found with the specified name.")
+        print("... No process found with the specified name. opening slotted")
         subprocess.Popen(process_path)
-        print(f"Launched {process_path}")
-        return True
+        print(f"... Launched {process_path}")
+        return False
     else:
+        print("... slotted is running, wait for it...")
         find_sub_window_and_switch_to(process_pid, subwindowTitle)
         return True
 
@@ -278,34 +196,46 @@ def is_script_running():
     return False
     
 
-
-
-
 subwindowTitle = "https://tauri.localhost/select-product"
-
-
-
 
 if process_path == "" or process_name =="":
     process_name, process_path = find_slotted()
 print("located slotted at: {}", process_path)
 
-if loadBtn == "":
-    loadBtn = find_load_button()
-print("Located Load button at: {}", loadBtn)
-
 while True:
-    print("inf loop...")
-    if is_game_running():
-        print("inf loop game running...")
-        if launch_script():
-            start_script()
-            wait_close()    
-    else:
-        print("League of Legends game is not running.")
-        time.sleep(35)
-    print("sleep for 5 secs on principle")
-    time.sleep(5)
+    try:
+        print("-==-=-= looping-=-=-=-==-")
+        # print("game running: {}", is_game_running())
+        # print("is slotted running: {}", is_slotted_running())
+        game_running = is_game_running()
+        script_running, name = is_slotted_running()
+
+        if is_game_running():
+            if not script_running:
+                print("league is running: True")
+                print("Launch script enter -->")
+                if launch_script():
+                    print("try start")
+                    start_script()
+                    print("-=-==--==-=--=-=-=-=-=-=-=")
+                    print("waiting till game closes")
+                    #wait_close()
+                else:
+                    print("Wasnt open already come back around")
+            else:
+                print("script already running king.")
+                time.sleep(15)
+        else:
+            script_running, name = is_slotted_running()
+            kill_process_by_name(name)
+            time.sleep(15)
+
+        time.sleep(8)
+    except:
+        time.sleep(8)
+        print("idk")
+
+    
 
 
 
