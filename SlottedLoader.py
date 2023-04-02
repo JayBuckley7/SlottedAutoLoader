@@ -1,5 +1,4 @@
 import re
-import pygetwindow as gw
 import psutil
 import win32gui
 import subprocess
@@ -8,27 +7,20 @@ from pywinauto.timings import wait_until
 from pywinauto.application import Application
 import glob
 import os
-import tkinter as tk
-from tkinter import filedialog
-from pywinauto_recorder.player import *
 import win32con
 import ctypes
-
+import tkinter as tk
+from tkinter import filedialog
 
 
 process_path = ""
 process_name = os.path.basename(process_path) 
+appdata_path = ""
+appdata_name = os.path.basename(appdata_path) 
 game_process_name = "League of Legends.exe"
 
 
-def browse_file():
-    root = tk.Tk()
-    root.withdraw()
-    file_path = filedialog.askopenfilename()
-    if file_path:
-        with open('path.txt', 'w') as f:
-            f.write(file_path)
-    return file_path
+
 
 def restore_window(main_window_handle):
     placement = win32gui.GetWindowPlacement(main_window_handle)
@@ -55,23 +47,40 @@ def find_and_click_button(main_window_handle):
     else:
         print("main windows handle was false")
 
+def update_path_file(line_number, new_value):
+    path_file = os.path.join(os.getcwd(), "path.txt")
+
+    # Create the file if it doesn't exist
+    if not os.path.exists(path_file):
+        with open(path_file, "w") as f:
+            pass
+
+    with open(path_file, "r") as f:
+        lines = f.readlines()
+
+    if line_number < len(lines):
+        lines[line_number] = new_value + "\n"
+    else:
+        lines.append(new_value + "\n")
+
+    with open(path_file, "w") as f:
+        f.writelines(lines)
+
 def find_slotted():
     path_file = os.path.join(os.getcwd(), "path.txt")
     if os.path.exists(path_file):
         with open(path_file, "r") as f:
-            process_path = f.read().strip()
+            process_path = f.readline().strip()
         if os.path.exists(process_path):
-            print("pulled from config")
             process_name = os.path.basename(process_path)
+            print(f"pulled {process_path} from config")
             return process_name, process_path
         else:
             print(f"The process path from previous config {process_path} does not exist.")
-            os.remove(path_file)
     else:
         print("The file path.txt does not exist.")
     
-
-    print(f"Searching for exe's in {os.getcwd()}")
+    print(f"Searching for slotted launcher exe's in {os.getcwd()}")
     pattern = "*.exe"
     files = glob.glob(pattern)
 
@@ -84,15 +93,57 @@ def find_slotted():
             return process_name, process_path
 
     # If no matching file was found
-    print("couldnt find slotted")
-    process_path = browse_file()
-    process_name = os.path.basename(process_path) 
+    print("couldnt find slotted launcher")
+    process_path = filedialog.askopenfilename(title='Please select a the slotted launcher exe')
+    process_name = os.path.basename(process_path)
+    update_path_file(0, process_path)
     return process_name, process_path
 
-def find_exe_name():
-    path = os.path.join(os.environ['APPDATA'],'QUFUQQ==').replace("Roaming", "Local")
+def find_slotted_appdata():
+    path_file = os.path.join(os.getcwd(), "path.txt")
+    if os.path.exists(path_file):
+        with open(path_file, "r") as f:
+            f.readline()  # Skip the first line
+            appdata_path = f.readline().strip()
+        if os.path.exists(appdata_path):
+            appdata_name = os.path.basename(appdata_path)
+            print(f"pulled {appdata_path} from config")
+            return appdata_name, appdata_name
+        else:
+            print(f"The process path from previous config {appdata_path} does not exist.")
+            update_path_file(1, "")
+    else:
+        print("The file path.txt does not exist.")
+    
+    # Get the AppData\Local folder path
+    appdata_local = os.path.join(os.environ["LOCALAPPDATA"])
 
-    print("searching for exe in {}", path)
+    print(f"Searching for folders in {appdata_local}")
+
+    # Find the folder name that matches the regex
+    regex = re.compile(r"^[A-Za-z0-9]{5,10}==$")
+    for folder_name in os.listdir(appdata_local):
+        folder_path = os.path.join(appdata_local, folder_name)
+        if os.path.isdir(folder_path) and regex.match(folder_name):
+            a_file_path = os.path.join(folder_path, "a")
+            if os.path.isfile(a_file_path):
+                appdata_name = folder_name
+                appdata_path = folder_path
+                return appdata_name, appdata_path
+            
+    # If no matching folder was found
+    print("couldnt find slotted appdata_folder")
+    appdata_path = os.path.dirname(filedialog.askopenfilename(initialdir=appdata_local, title='Please select the slotted app data folder [a] file'))
+
+    appdata_name = os.path.basename(appdata_path)
+    update_path_file(1, appdata_path)
+    return appdata_name, appdata_path
+
+
+def find_exe_name(slotted_app_data_path):
+    path = appdata_path
+
+    # print("searching for exe in {}", path)
     exe_files = glob.glob(os.path.join(path, '*.exe'))
 
     if not exe_files:
@@ -104,7 +155,7 @@ def find_exe_name():
             return os.path.basename(exe_files[1])
 
 def is_slotted_running():
-    name = find_exe_name()
+    name = find_exe_name(appdata_path)
     if name:
         print("name: " + str(name))
         return True, name
@@ -202,6 +253,15 @@ if process_path == "" or process_name =="":
     process_name, process_path = find_slotted()
 print("located slotted at: {}", process_path)
 
+if appdata_path == "" or appdata_name =="":
+    appdata_name, appdata_path = find_slotted_appdata()
+print("located slotted appdata at: {}", appdata_path)
+
+# I forget why these are here
+process_name = os.path.basename(process_path) 
+appdata_name = os.path.basename(appdata_path) 
+
+
 while True:
     try:
         print("-==-=-= looping-=-=-=-==-")
@@ -227,16 +287,13 @@ while True:
                 time.sleep(15)
         else:
             script_running, name = is_slotted_running()
-            kill_process_by_name(name)
+            if script_running:
+                kill_process_by_name(name)
+                
             time.sleep(15)
 
         time.sleep(8)
-    except:
+    except Exception as e:
         time.sleep(8)
         print("idk")
-
-    
-
-
-
 
