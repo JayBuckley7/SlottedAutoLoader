@@ -20,8 +20,6 @@ appdata_name = os.path.basename(appdata_path)
 game_process_name = "League of Legends.exe"
 
 
-
-
 def restore_window(main_window_handle):
     placement = win32gui.GetWindowPlacement(main_window_handle)
     if placement[1] == win32con.SW_SHOWMINIMIZED:
@@ -35,17 +33,45 @@ def find_and_click_button(main_window_handle):
     if main_window_handle:
         try:
             restore_window(main_window_handle)
-            win32gui.SetForegroundWindow(main_window_handle)
-            x = 690
-            y = 460
-            lParam = (y << 16) | x
 
-            ctypes.windll.user32.SendMessageW(main_window_handle, WM_LBUTTONDOWN, 1, lParam)
-            ctypes.windll.user32.SendMessageW(main_window_handle, WM_LBUTTONUP, 1, lParam)
-        except:
-            print("failed during click")
+            # Bring the window to the foreground
+            win32gui.ShowWindow(main_window_handle, win32con.SW_RESTORE)
+            win32gui.SetWindowPos(main_window_handle, win32con.HWND_TOP, 0, 0, 0, 0, win32con.SWP_NOSIZE | win32con.SWP_NOMOVE)
+            x1 = 690
+            y1 = 460
+            x2 = 560
+            y2 = 380
+
+            # Get the window's position
+            window_rect = win32gui.GetWindowRect(main_window_handle)
+            window_x, window_y, _, _ = window_rect
+
+            # Calculate the absolute positions
+            abs_x1 = x1 + window_x
+            abs_y1 = y1 + window_y
+
+            abs_x2 = x2 + window_x
+            abs_y2 = y2 + window_y
+
+            # Calculate the lParam values
+            lParam1 = (y1 << 16) | x1
+            lParam2 = (y2 << 16) | x2
+
+            # Move the cursor to the click positions for debugging
+            # SetCursorPos = ctypes.windll.user32.SetCursorPos
+            # SetCursorPos(abs_x, abs_y)
+            # time.sleep(1)
+
+            ctypes.windll.user32.SendMessageW(main_window_handle, WM_LBUTTONDOWN, 1, lParam1)
+            ctypes.windll.user32.SendMessageW(main_window_handle, WM_LBUTTONUP, 1, lParam1)
+            ctypes.windll.user32.SendMessageW(main_window_handle, WM_LBUTTONDOWN, 1, lParam2)
+            ctypes.windll.user32.SendMessageW(main_window_handle, WM_LBUTTONUP, 1, lParam2)
+        except Exception as e:
+            print(f"failed during click: {e}")
     else:
         print("main windows handle was false")
+
+
 
 def update_path_file(line_number, new_value):
     path_file = os.path.join(os.getcwd(), "path.txt")
@@ -145,10 +171,13 @@ def find_exe_name(slotted_app_data_path):
 
     # print("searching for exe in {}", path)
     exe_files = glob.glob(os.path.join(path, '*.exe'))
+    m_files = glob.glob(os.path.join(path, 'm'))
 
-    if not exe_files:
+    # Combine both lists
+    all_files = exe_files + m_files
+    if not all_files:
         return None
-    for file in exe_files:
+    for file in all_files:
         try:
             os.remove(file)
         except:
